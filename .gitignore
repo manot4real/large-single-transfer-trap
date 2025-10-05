@@ -1,0 +1,20 @@
+# Node / npm
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Foundry / Forge
+out/
+cache/
+lib/
+broadcast/
+forge.lock
+
+# Environment / secrets
+.env
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
