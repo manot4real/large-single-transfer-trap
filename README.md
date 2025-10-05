@@ -34,7 +34,7 @@ This trap is designed to **detect and respond** when a large transfer is made fr
 
 ## 🔧 File Structure
 
-```bash
+```
 large-transfer-trap/
 ├── src/
 │   └── LargeSingleTransferTrap.sol       # Main trap logic
@@ -42,13 +42,14 @@ large-transfer-trap/
 ├── README.md                             # You're reading this!
 ├── LICENSE                               # MIT License
 └── .gitignore                            # Standard ignores for Forge/Drosera
-
+```
 ---
 
 ## ⚙️ drosera.toml Configuration
 
 The drosera.toml file defines how the Drosera relay will interact with your trap:
 
+```
 [traps]
 
 [traps.large_single_transfer]
@@ -60,20 +61,24 @@ min_number_of_operators = 1
 max_number_of_operators = 2
 block_sample_size = 10
 private_trap = true
+```
 
 ---
 
 ## 🚀 Getting Started
-1. Install Foundry (Forge)
+**1. Install Foundry (Forge)**
+```
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
-
-2. Build the Contract
+```
+**2. Build the Contract**
+```
 forge build
-
-3. Run a Dry Test
+```
+**3. Run a Dry Test**
+```
 drosera dryrun --eth-rpc-url https://ethereum-hoodi-rpc.publicnode.com
-
+```
 Make sure your trap is properly registered in drosera.toml.
 
 ---
