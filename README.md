@@ -278,7 +278,11 @@ large-transfer-trap/
 - **Documentation**: [docs.drosera.io](https://docs.drosera.io)
 
 ---
+
+*Currently Running the Large Single Transfer Trap [Here](https://app.drosera.io/trap?trapId=0x277c8491fa436f9916dcd441b044d00a571cf338&chainId=560048)*
+
+---
 - **Author**: TheBaldKid
-- **X** : [Follow Me](https://x.com/thebaldkid___)
+- **X** : [Follow Me <3](https://x.com/thebaldkid___)
 
 
