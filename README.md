@@ -60,7 +60,7 @@ source /root/.bashrc
 foundryup
 ```
 
-## 2. Create Trap and Edit drosera.toml
+## 2. Create Trap and Edit `drosera.toml`
 
 **Create Large Single Transfer Trap file**
 
@@ -169,7 +169,7 @@ contract LargeSingleTransferTrap is ITrap {
 - Ctrl Y
 - and Enter
 
-**Edit drosera.toml**
+**Edit `drosera.toml`**
 
 ```
 nano drosera.toml
@@ -209,7 +209,7 @@ forge build
 ```
 drosera dryrun
 ```
-- Enter the command, when prompted, write ofc and press Enter.
+- Enter the command, when prompted, write `ofc` and press `Enter`.
 
 **3. Apply and Deploy the Trap :**
 
