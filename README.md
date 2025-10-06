@@ -40,13 +40,13 @@ This trap is useful for detecting potential large token transfers, withdrawals, 
 
 ## 1. Update Drosera CLI & Foundry CLI 
 
-** Drosera CLI : **
+**Drosera CLI :**
 
 ```
 droseraup
 ```
 
-** Foundry CLI : **
+**Foundry CLI :**
 
 ```
 curl -L https://foundry.paradigm.xyz | bash
@@ -62,7 +62,7 @@ foundryup
 
 ## 2. Create Trap and Edit drosera.toml
 
-** Create Large Single Transfer Trap file **
+**Create Large Single Transfer Trap file**
 
 ```
 cd ~
@@ -76,11 +76,11 @@ cd my-drosera-trap
 nano src/LargeSingleTransferTrap.sol
 ```
 
-Copy and paste this in the file.
-You  can edit the following values 
-`TOKEN =` ERC20 token contract address to monitor.
-`MONITORED =` Address whose token balance is monitored.
-`THRESHOLD =` The minimum drop in token balance to trigger the trap (consider token decimals).
+- Copy and paste this in the file.
+- You  can edit the following values 
+- `TOKEN =` ERC20 token contract address to monitor.
+- `MONITORED =` Address whose token balance is monitored.
+- `THRESHOLD =` The minimum drop in token balance to trigger the trap (consider token decimals).
 
 ```
 // SPDX-License-Identifier: MIT
@@ -164,12 +164,12 @@ contract LargeSingleTransferTrap is ITrap {
 
 ```
 
-Save the file using 
-Ctrl X
-Ctrl Y
-and Enter
+- Save the file using 
+- Ctrl X
+- Ctrl Y
+- and Enter
 
-** Edit drosera.toml **
+**Edit drosera.toml**
 
 ```
 nano drosera.toml
@@ -186,15 +186,15 @@ response_contract = "0x25E2CeF36020A736CF8a4D2cAdD2EBE3940F4608"
 response_function = "respondWithBytes(bytes)"
 ```
 
-Save the file using
-Ctrl X
-Ctrl Y
-and Enter
+- Save the file using
+- Ctrl X
+- Ctrl Y
+- and Enter
 
 
 ## 3. Apply the modifications to the Trap.
 
-**1. Compile your Trap's Contract : **
+**1. Compile your Trap's Contract :**
 
 ```
 forge clean
@@ -204,25 +204,24 @@ forge clean
 forge build
 ```
 
-** 2. Test the trap before deploying : **
+**2. Test the trap before deploying :**
 
 ```
 drosera dryrun
 ```
-Enter the command, when prompted, write ofc and press Enter.
-** 3. Apply and Deploy the Trap : **
+- Enter the command, when prompted, write ofc and press Enter.
+
+**3. Apply and Deploy the Trap :**
 
 ```
 DROSERA_PRIVATE_KEY=xxx drosera apply
 ```
 
-Replace `xxx` with your EVM wallet privatekey (Ensure it's funded with Hoodi ETH)
+- Replace `xxx` with your EVM wallet privatekey (Ensure it's funded with Hoodi ETH)
 Enter the command, when prompted, write `ofc` and press `Enter`.
+
 ---
-- **Author**: idle0x
-- **Network**: Hoodi Testnet (Chain ID: 560048)
-- **Status**: Deployed and Active
-- **Category**: Network Health Monitoring
+
 ## Restart Operator Nodes
 
 ```
@@ -252,7 +251,7 @@ docker compose logs -f
 ```
 
 
-** And you're done :) **
+**And you're done :)**
 
 
 ---
@@ -280,6 +279,6 @@ large-transfer-trap/
 
 ---
 - **Author**: TheBaldKid
-- **X* : [Follow Me](https://x.com/thebaldkid___)
+- **X** : [Follow Me](https://x.com/thebaldkid___)
 
 
