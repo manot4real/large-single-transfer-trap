@@ -1,0 +1,335 @@
+# 🚨 Large Single Transfer Trap
+
+A custom smart contract **trap** built for [Drosera Network](https://drosera.network/) — deployed on the **Hoodi Testnet**. This trap monitors for **large single-token transfers** of a specific ERC-20 token and triggers a response when the amount exceeds a defined threshold.
+
+---
+
+## 🔍 Overview
+
+This trap is designed to **detect and respond** when a large transfer is made from a specific account (`WATCHED_ADDRESS`) using a specific ERC-20 token.
+The token used here is DRO, the watched address is mine and token threashold is 0.01, you can later edit these values.
+
+- 📌 **Use Case**: Detect suspicious whale activity (e.g., >0.01 token transfers)
+- ⚠️ **Triggered When**: A transfer exceeds the configured threshold within a single check interval
+- 🧠 **Strategy**: Compare token balance delta over time using Drosera’s `collect()` function
+
+---
+
+## 🧾 Contract: `LargeSingleTransferTrap.sol`
+
+### 🛠 Key Parameters:
+
+| Parameter         | Value                                                                 |
+|------------------|------------------------------------------------------------------------|
+| Token Address     | `0xYourTokenAddressHere`                                               |
+| Watched Address   | `0xAddressToWatch`                                                     |
+| Threshold         | `0.01` tokens (expressed as `0.01 * 10^18` for 18 decimals)            |
+| Trap Name         | `"large_single_transfer"`                                              |
+
+> 💡 The threshold can be adjusted in the contract constant:
+> ```solidity
+> uint256 public constant THRESHOLD = 1e16; // 0.01 tokens with 18 decimals
+> ```
+
+---
+
+## INSTALLATION GUIDE USING DOCKER 
+**Note: This guide is meant for people who have previously deployed a trap and feel like testing mine.**
+
+### Install Dependencies
+```
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt install curl ufw iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev -y
+```
+
+---
+
+## Install Docker
+```
+sudo apt update -y && sudo apt upgrade -y
+
+# Remove old docker packages if exist
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove $pkg; done
+
+sudo apt-get update
+
+sudo apt-get install ca-certificates curl gnupg -y
+
+sudo install -m 0755 -d /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update -y && sudo apt upgrade -y
+
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+
+# Test Docker
+sudo docker run hello-world
+```
+You should see a "Hello World" message from docker
+ 
+---
+
+#  TRAP SETUP
+
+## 1. Install Tools 
+
+```
+cd #ensure you in root directory
+```
+
+** Drosera CLI **
+
+```
+curl -L https://app.drosera.io/install | bash
+```
+
+```
+source ~/.bashrc
+```
+
+```
+droseraup
+```
+
+** Foundry CLI **
+
+```
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+```
+source ~/.bashrc
+```
+
+```
+foundryup
+```
+
+** Bun **
+
+```
+curl -fsSL https://bun.sh/install | bash
+```
+
+```
+source ~/.bashrc
+```
+
+## 2. Create The Large Single Transfer Trap 
+
+```
+cd ~
+```
+
+```
+cd my-drosera-trap
+```
+
+```
+nano src/LargeSingleTransferTrap.sol
+```
+
+**Add this in the empty file**
+Edit these values or simply use mine 
+TOKEN : The ERC20 token address to monitor.
+MONITORED : The address to monitor for large outgoing transfers.
+THRESHOLD: The minimum drop in token balance to trigger the trap (remember to consider the token decimals) 
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "drosera-contracts/interfaces/ITrap.sol";
+
+interface IERC20 {
+    function balanceOf(address account) external view returns (uint256);
+}
+
+/**
+ * @title LargeSingleTransferTrap
+ * @notice Detects large transfers out of a monitored address by comparing balance drops.
+ *
+ * Parameters to configure before deployment:
+ * - TOKEN: The ERC20 token address to monitor.
+ * - MONITORED: The address to monitor for large outgoing transfers.
+ * - THRESHOLD: The minimum drop in token balance to trigger the trap (0.01 token here).
+ */
+contract LargeSingleTransferTrap is ITrap {
+    address public constant TOKEN = 0x499b095Ed02f76E56444c242EC43A05F9c2A3ac8;
+    address public constant MONITORED = 0x216a54E8bFD7D9bB19fCd5730c072F61E1Af2309;
+    uint256 public constant THRESHOLD = 10**16; // 0.01 token with 18 decimals
+
+    string public constant trapName = "LargeSingleTransferTrap_v1";
+
+    constructor() {
+        require(TOKEN != address(0), "zero token");
+        require(MONITORED != address(0), "zero monitored address");
+    }
+
+    // Sample the current balance of the monitored address
+    function collect() external view returns (bytes memory) {
+        uint256 balance = IERC20(TOKEN).balanceOf(MONITORED);
+        return abi.encode(balance, TOKEN, MONITORED, trapName);
+    }
+
+    /**
+     * Check if the balance dropped by at least THRESHOLD between two samples.
+     * data is an array of collected samples; compares last two.
+     * Returns true if drop >= THRESHOLD with encoded info in payload.
+     */
+    function shouldRespond(bytes[] calldata data) external pure returns (bool, bytes memory) {
+        if (data.length < 2) return (false, bytes(""));
+
+        (uint256 prevBalance, address token, address monitored, string memory name) = abi.decode(data[data.length - 2], (uint256, address, address, string));
+        (uint256 latestBalance, , , ) = abi.decode(data[data.length - 1], (uint256, address, address, string));
+
+        if (prevBalance > latestBalance) {
+            uint256 delta = prevBalance - latestBalance;
+            if (delta >= THRESHOLD) {
+                string memory reason = string(abi.encodePacked("large_transfer_out; threshold=", uint2str(THRESHOLD)));
+                bytes memory payload = abi.encode(delta, latestBalance, token, monitored, reason);
+                return (true, payload);
+            }
+        }
+
+        return (false, bytes(""));
+    }
+
+    // Helper to convert uint to string
+    function uint2str(uint256 _i) internal pure returns (string memory str) {
+        if (_i == 0) return "0";
+        uint256 j = _i;
+        uint256 length;
+        while (j != 0) {
+            length++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(length);
+        uint256 k = length;
+        j = _i;
+        while (j != 0) {
+            bstr[--k] = bytes1(uint8(48 + j % 10));
+            j /= 10;
+        }
+        str = string(bstr);
+    }
+}
+
+```
+
+** Edit drosera.toml to match the trap **
+
+```
+nano drosera.toml
+```
+
+Modify the values to match this :
+
+```
+ethereum_rpc = "https://ethereum-hoodi-rpc.publicnode.com"
+drosera_rpc = "https://relay.hoodi.drosera.io"
+eth_chain_id = 560048
+drosera_address = "0x91cB447BaFc6e0EA0F4Fe056F5a9b1F14bb06e5D"
+
+[traps]
+
+[traps.large_single_transfer]
+path = "out/LargeSingleTransferTrap.sol/LargeSingleTransferTrap.json"
+response_contract = "0x25E2CeF36020A736CF8a4D2cAdD2EBE3940F4608"
+response_function = "respondWithBytes(bytes)"
+cooldown_period_blocks = 33
+min_number_of_operators = 1
+max_number_of_operators = 2
+block_sample_size = 10
+private_trap = true
+whitelist = ["YOUR_OPERATOR_ADDRESS"]
+address = "YOUR_TRAP_CONFIG_ADDRESS"
+```
+
+## 3. Deploy The Trap
+
+** 1. Compile your Trap's Contract : **
+
+```
+forge clean
+```
+
+```
+forge build
+```
+
+** 2. Test the trap before deploying : **
+
+```
+drosera dryrun
+```
+
+** 3. Apply and Deploy the Trap : **
+
+```
+DROSERA_PRIVATE_KEY=xxx drosera apply
+```
+
+Replace **xxx** with your EVM wallet private key (Ensure it's funded with Hoodi ETH).
+When prompted, write **ofc** and press Enter.
+
+## 4. Restart Docker Operators
+
+**Go to Drosera Network directory**
+```
+cd ~
+```
+
+```
+cd Drosera-Network
+```
+
+** Restart operators **
+
+```
+docker compose down -v
+```
+
+```
+docker compose up -d
+```
+
+```
+docker compose restart
+```
+
+View the logs, you might see some erros or unhealty logs at first, just wait for a few minutes
+
+```
+docker compose logs -f
+```
+
+
+And you're done :)
+
+---
+
+
+## 🔧 File Structure
+
+```
+large-transfer-trap/
+├── src/
+│   └── LargeSingleTransferTrap.sol       # Main trap logic
+├── drosera.toml                          # Drosera trap configuration
+├── README.md                             # You're reading this!
+├── LICENSE                               # MIT License
+└── .gitignore                            # Standard ignores for Forge/Drosera
+```
+---
+
+## Why This Trap is Unique.
+You can stalk a whales address to watch out if a specific token is being withdrawn in large amouts
