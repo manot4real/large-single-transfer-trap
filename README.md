@@ -1,4 +1,4 @@
-# 🚨 Large Single Transfer Trap
+# 🚨 Large Single Transfer Trap V2 -updated :)
 
 A custom smart contract **trap** built for [Drosera Network](https://drosera.network/) — deployed on the **Hoodi Testnet**. This trap monitors for **large single-token transfers** of a specific ERC-20 token and triggers a response when the amount exceeds a defined threshold.
 
@@ -73,7 +73,7 @@ cd my-drosera-trap
 ```
 
 ```
-nano src/LargeSingleTransferTrap.sol
+nano src/LargeSingleTransferTrap_v2.sol
 ```
 
 - Copy and paste this in the file.
@@ -93,75 +93,84 @@ interface IERC20 {
 }
 
 /**
- * @title LargeSingleTransferTrap
- * @notice Detects large transfers out of a monitored address by comparing balance drops.
- *
- * Parameters to configure before deployment:
- * - TOKEN: The ERC20 token address to monitor.
- * - MONITORED: The address to monitor for large outgoing transfers.
- * - THRESHOLD: The minimum drop in token balance to trigger the trap (0.01 token here).
+ * @title LargeSingleTransferTrap_v2
+ * @notice Detects large *sustained* token balance drops from a monitored address.
+ *         Now includes reorg safety, debounce, and lean sampling.
  */
-contract LargeSingleTransferTrap is ITrap {
+contract LargeSingleTransferTrap_v2 is ITrap {
+    // -----------------------------
+    // CONFIGURATION CONSTANTS
+    // -----------------------------
     address public constant TOKEN = 0x499b095Ed02f76E56444c242EC43A05F9c2A3ac8;
     address public constant MONITORED = 0x216a54E8bFD7D9bB19fCd5730c072F61E1Af2309;
-    uint256 public constant THRESHOLD = 10**16; // 0.01 token with 18 decimals
+    uint256 public constant THRESHOLD = 10**16; // 0.01 token (18 decimals)
+    uint256 public constant COOLDOWN_BLOCKS = 2; // optional debounce window
 
-    string public constant trapName = "LargeSingleTransferTrap_v1";
+    string public constant TRAP_NAME = "LargeSingleTransferTrap_v2";
 
     constructor() {
         require(TOKEN != address(0), "zero token");
-        require(MONITORED != address(0), "zero monitored address");
+        require(MONITORED != address(0), "zero monitored");
     }
 
-    // Sample the current balance of the monitored address
-    function collect() external view returns (bytes memory) {
-        uint256 balance = IERC20(TOKEN).balanceOf(MONITORED);
-        return abi.encode(balance, TOKEN, MONITORED, trapName);
+    // -----------------------------
+    // DATA COLLECTION
+    // -----------------------------
+    function collect() external view override returns (bytes memory) {
+        // Lean: only return balance + block.number
+        uint256 bal = IERC20(TOKEN).balanceOf(MONITORED);
+        return abi.encode(bal, block.number);
     }
 
-    /**
-     * Check if the balance dropped by at least THRESHOLD between two samples.
-     * data is an array of collected samples; compares last two.
-     * Returns true if drop >= THRESHOLD with encoded info in payload.
-     */
-    function shouldRespond(bytes[] calldata data) external pure returns (bool, bytes memory) {
-        if (data.length < 2) return (false, bytes(""));
+    // -----------------------------
+    // RESPONSE LOGIC
+    // -----------------------------
+    function shouldRespond(bytes[] calldata data)
+        external
+        pure
+        override
+        returns (bool, bytes memory)
+    {
+        if (data.length < 3) return (false, bytes("need 3 samples for debounce"));
 
-        (uint256 prevBalance, address token, address monitored, string memory name) = abi.decode(data[data.length - 2], (uint256, address, address, string));
-        (uint256 latestBalance, , , ) = abi.decode(data[data.length - 1], (uint256, address, address, string));
+        // Drosera passes newest sample at index 0, older ones next.
+        (uint256 latestBal, uint256 latestBlock) = abi.decode(data[0], (uint256, uint256));
+        (uint256 prevBal, uint256 prevBlock) = abi.decode(data[1], (uint256, uint256));
+        (uint256 oldBal, uint256 oldBlock) = abi.decode(data[2], (uint256, uint256));
 
-        if (prevBalance > latestBalance) {
-            uint256 delta = prevBalance - latestBalance;
-            if (delta >= THRESHOLD) {
-                string memory reason = string(abi.encodePacked("large_transfer_out; threshold=", uint2str(THRESHOLD)));
-                bytes memory payload = abi.encode(delta, latestBalance, token, monitored, reason);
-                return (true, payload);
+        // --- Reorg safety ---
+        if (latestBlock <= prevBlock || prevBlock <= oldBlock) {
+            return (false, bytes("reorg_or_out_of_order"));
+        }
+        if ((latestBlock - prevBlock) > 2 || (prevBlock - oldBlock) > 2) {
+            return (false, bytes("sampling_gap_detected"));
+        }
+
+        // --- Compute deltas ---
+        if (prevBal > latestBal) {
+            uint256 delta1 = prevBal - latestBal;
+            // Edge trigger: require that this drop persisted across previous 2 samples
+            if (oldBal > prevBal) {
+                uint256 delta2 = oldBal - prevBal;
+
+                // Both drops must exceed threshold for sustained drop
+                if (delta1 >= THRESHOLD && delta2 >= THRESHOLD) {
+                    bytes memory payload = abi.encode(
+                        TOKEN,
+                        MONITORED,
+                        latestBal,
+                        delta1,
+                        latestBlock,
+                        TRAP_NAME
+                    );
+                    return (true, payload);
+                }
             }
         }
 
         return (false, bytes(""));
     }
-
-    // Helper to convert uint to string
-    function uint2str(uint256 _i) internal pure returns (string memory str) {
-        if (_i == 0) return "0";
-        uint256 j = _i;
-        uint256 length;
-        while (j != 0) {
-            length++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(length);
-        uint256 k = length;
-        j = _i;
-        while (j != 0) {
-            bstr[--k] = bytes1(uint8(48 + j % 10));
-            j /= 10;
-        }
-        str = string(bstr);
-    }
 }
-
 ```
 
 - Save the file using 
@@ -178,12 +187,25 @@ nano drosera.toml
 Change the values to match this : 
 
 ``` 
+ethereum_rpc = "https://ethereum-hoodi-rpc.publicnode.com"
+drosera_rpc = "https://relay.hoodi.drosera.io"
+eth_chain_id = 560048
+drosera_address = "0x91cB447BaFc6e0EA0F4Fe056F5a9b1F14bb06e5D"
+
+
 [traps]
 
-[traps.large_single_transfer]
-path = "out/LargeSingleTransferTrap.sol/LargeSingleTransferTrap.json"
+[traps.large_single_transfer_v2]
+path = "out/LargeSingleTransferTrap_v2.sol/LargeSingleTransferTrap>
 response_contract = "0x25E2CeF36020A736CF8a4D2cAdD2EBE3940F4608"
 response_function = "respondWithBytes(bytes)"
+cooldown_period_blocks = 33
+min_number_of_operators = 1
+max_number_of_operators = 2
+block_sample_size = 10
+private_trap = false
+whitelist = ["your_operator_address"]
+address = "trap_config_address"
 ```
 
 - Save the file using
@@ -261,11 +283,11 @@ docker compose logs -f
 ```
 large-transfer-trap/
 ├── src/
-│   └── LargeSingleTransferTrap.sol       # Main trap logic
-├── drosera.toml                          # Drosera trap configuration
-├── README.md                             # You're reading this!
-├── LICENSE                               # MIT License
-└── .gitignore                            # Standard ignores for Forge/Drosera
+│   └── LargeSingleTransferTrap_v2.sol       # Main trap logic
+├── drosera.toml                             # Drosera trap configuration
+├── README.md                                # You're reading this!
+├── LICENSE                                  # MIT License
+└── .gitignore                               # Standard ignores for Forge/Drosera
 ```
 
 ---
@@ -280,6 +302,6 @@ large-transfer-trap/
 ---
 - **Author**: TheBaldKid
 - **X** : [Follow Me <3](https://x.com/thebaldkid___)
-- **Trap Deployed and Active** : [LargeSingleTransferTrap](https://app.drosera.io/trap?trapId=0x277c8491fa436f9916dcd441b044d00a571cf338&chainId=560048)
+- **Trap Deployed and Active** : [LargeSingleTransferTrap_V2](https://app.drosera.io/trap?trapId=0x277c8491fa436f9916dcd441b044d00a571cf338&chainId=560048)
 
 
