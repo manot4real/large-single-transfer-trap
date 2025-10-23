@@ -18,7 +18,7 @@ This trap is useful for detecting potential large token transfers, withdrawals, 
 
 ---
 
-## 🧾 Contract: `LargeSingleTransferTrap.sol`
+## 🧾 Contract: `LargeSingleTransferTrap_v2.sol`
 
 ### 🛠 Key Parameters:
 
